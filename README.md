@@ -18,6 +18,9 @@ become obsolete.
 If there is really no other way to plumb your containers together with
 the current version of Docker, then okay, let's see how we can help you!
 
+Syntax : pipework <hostinterface> <guest> <ipaddr>/<subnet>[@default_gateway] [macaddr] 
+  optional: @default_gateway overrides the current default gateway in the container.
+
 The following examples show what Pipework can do for you and your containers.
 
 
@@ -73,6 +76,14 @@ Don't forget that all containers should use the same subnet size;
 pipework is not clever enough to use your specified subnet size for
 the first container, and retain it to use it for the other containers.
 
+## Setting a default gateway.
+
+The default interface in the container is always masquerading the internet traffic. 
+in some usecases like traffic shaping you like to override the default gateway.
+
+    pipework br1 $CONTAINERID 192.168.4.25/20@192.168.4.1
+
+Voilà!
 
 ## Connect a container to a local physical interface
 

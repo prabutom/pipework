@@ -3,21 +3,22 @@ set -e
 
 case "$1" in
     --wait)
-	while ! grep -q ^up$ /sys/class/net/eth1/operstate 2>/dev/null
-	do sleep 1
-	done
-	exit 0
-	;;
+        while ! grep -q ^up$ /sys/class/net/eth1/operstate 2>/dev/null
+        do sleep 1
+        done
+        exit 0
+        ;;
 esac
 
 IFNAME=$1
 GUESTNAME=$2
-IPADDR=$3
-MACADDR=$4
+IPADDR=`echo $3|cut -d@ -f1`
+DF_GW=`echo $3|cut -d@ -f2`
+MACADDR=$5
 
 [ "$IPADDR" ] || {
     echo "Syntax:"
-    echo "pipework <hostinterface> <guest> <ipaddr>/<subnet> [macaddr]"
+    echo "pipework <hostinterface> <guest> <ipaddr>/<subnet>[@default_gateway] [macaddr]"
     echo "pipework <hostinterface> <guest> dhcp [macaddr]"
     echo "pipework --wait"
     exit 1
@@ -32,13 +33,13 @@ then
     fi
 else
     case "$IFNAME" in
-	br*)
-	    IFTYPE=bridge
-	    ;;
-	*)
-	    echo "I do not know how to setup interface $IFNAME."
-	    exit 1
-	    ;;
+        br*)
+            IFTYPE=bridge
+            ;;
+        *)
+            echo "I do not know how to setup interface $IFNAME."
+            exit 1
+            ;;
     esac
 fi
 
@@ -58,31 +59,31 @@ done < /proc/mounts
 N=$(find "$CGROUPMNT" -name "$GUESTNAME*" | wc -l)
 case "$N" in
     0)
-	echo "Could not find any container matching $GUESTNAME."
-	exit 1
-	;;
+        echo "Could not find any container matching $GUESTNAME."
+        exit 1
+        ;;
     1)
-	true
-	;;
+        true
+        ;;
     *)
-	echo "Found more than one container matching $GUESTNAME."
-	exit 1
-	;;
+        echo "Found more than one container matching $GUESTNAME."
+        exit 1
+        ;;
 esac
 
 if [ "$IPADDR" = "dhcp" ]
 then
     # We use udhcpc to obtain the DHCP lease, make sure it's installed.
     which udhcpc >/dev/null || {
-	echo "You asked for DHCP; please install udhcpc first."
-	exit 1
+        echo "You asked for DHCP; please install udhcpc first."
+        exit 1
     }
 else
     # Check if a subnet mask was provided.
     echo $IPADDR | grep -q / || {
-	echo "The IP address should include a netmask."
-	echo "Maybe you meant $IPADDR/24 ?"
-	exit 1
+        echo "The IP address should include a netmask."
+        echo "Maybe you meant $IPADDR/24 ?"
+        exit 1
     }
 fi
 
@@ -127,4 +128,8 @@ then
 else
     ip netns exec $NSPID ip addr add $IPADDR dev eth1
     ip netns exec $NSPID ip link set eth1 up
+    if [ ! -z $DF_GW ];then 
+    ip netns exec $NSPID ip route delete default
+    ip netns exec $NSPID ip route add default via $DF_GW
+    fi
 fi
